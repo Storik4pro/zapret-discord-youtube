@@ -1,0 +1,7 @@
+{
+    "general": "Launch settings preset",
+    "alt": "Alternative",
+    "formgts": "For MGTS provider",
+    "useGameFilter": "Filter for accessing online games (GameFilter)",
+    "useGameFilter_tip": "Filters connections to servers commonly used for online games (Battlefield, Death Stranding, and others). Enabling this may result in high server response latency or reduced connection stability."
+}
