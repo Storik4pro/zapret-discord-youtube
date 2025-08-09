@@ -102,7 +102,7 @@ jobs:
           PAYLOAD_FILE=$(mktemp)
           jq -n \
           --arg tag "$TAG" \
-          --arg name "Auto-converted JSONs for $TAG" \
+          --arg name "$TAG" \
           --rawfile body "$BODY_FILE" \
           '{tag_name:$tag, name:$name, body:$body, draft:true, prerelease:false}' > "$PAYLOAD_FILE"
 
