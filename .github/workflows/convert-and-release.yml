@@ -17,20 +17,19 @@ permissions:
 jobs:
   convert_and_release:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repo (workflow + convert.py)
         uses: actions/checkout@v4
 
-      - name: Setup Python and utilities
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
-      - name: Install CLI tools
+      - name: Install helper tools (jq unzip)
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y jq zip unzip curl
+          sudo apt-get install -y jq unzip curl
 
       - name: Download source zip for the specified tag
         id: download
@@ -43,6 +42,25 @@ jobs:
           unzip -q "$SRC_ZIP" -d src
           ROOT=$(ls src | head -n1)
           echo "root=$ROOT" >> $GITHUB_OUTPUT
+
+      - name: Run conversion + package creation
+        env:
+          EXCLUDE_RAW: ${{ inputs.exclude }}
+        run: |
+          set -e
+          ROOT="${{ steps.download.outputs.root }}"
+          echo "Using extracted root: src/$ROOT"
+          rm -rf output_jsons package_temp zapret-discord-youtube.zip || true
+          mkdir -p output_jsons
+          # Args: <source_root> <output_json_folder> <package_dir> <zip_output_path> [exclude_csv]
+          python -u convert.py "src/$ROOT" output_jsons package_temp zapret-discord-youtube.zip "$EXCLUDE_RAW"
+
+          echo "Files produced:"
+          ls -la output_jsons || true
+          echo "Package contents (top level):"
+          ls -la package_temp || true
+          echo "Zip size:"
+          ls -lh zapret-discord-youtube.zip || true
 
       - name: Try to read release notes/body from upstream release (if exists)
         id: get_body
@@ -58,34 +76,12 @@ jobs:
           echo "$body" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Run conversion over extracted repo
-        env:
-          EXCLUDE_RAW: ${{ inputs.exclude }}
-        run: |
-          set -e
-          ROOT="${{ steps.download.outputs.root }}"
-          echo "Using extracted root: src/$ROOT"
-          mkdir -p output_jsons
-          python -u convert.py "src/$ROOT" output_jsons "$EXCLUDE_RAW" || true
-          ls -la output_jsons || true
-
-      - name: Pack JSONs into zapret-discord-youtube.zip
-        run: |
-          set -e
-          if ls output_jsons/*.json 1> /dev/null 2>&1; then
-            zip -j zapret-discord-youtube.zip output_jsons/*.json
-            ls -lh zapret-discord-youtube.zip
-          else
-            echo "No json files to pack, aborting."
-            exit 1
-          fi
-
       - name: Create draft release and upload asset
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
-          OWNER="Storik4pro"
+          OWNER="Flowseal"
           REPO="zapret-discord-youtube"
           TAG="${{ inputs.version }}"
           BODY="${{ steps.get_body.outputs.RELEASE_BODY }}"
