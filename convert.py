@@ -96,7 +96,7 @@ def convert_bat_file(bat_file: str, output_folder: str):
         raise KeyError(f"Empty startup parameters for {bat_file}. The file may be damaged or not compatible")
 
     bat_name = Path(bat_file).stem
-    loc_name = bat_name.replace("general", "$LOADSTRING(general) ").replace("(ALT", "$LOADSTRING(alt) ").replace(")", "").replace("(", "")
+    loc_name = bat_name.replace(")", "").replace("(", "").replace("general", "$LOADSTRING(general) ").replace("ALT", "$LOADSTRING(alt) ")
     name = loc_name
 
     json_data = {
@@ -274,3 +274,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
