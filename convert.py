@@ -25,7 +25,7 @@ import sys
 
 EXCLUDE_DIR_NAMES = {'.service', '.github'}
 EXCLUDE_FILE_NAMES = {'.gitignore', 'LICENSE.txt'}
-DEFAULT_EXCLUDED_EXTS = {'.exe', '.dll', '.sys'}  
+DEFAULT_EXCLUDED_EXTS = {'.exe', '.dll', '.sys', '.bat'}  
 
 def normalize_exts(ext_csv: str):
     """Return set of normalized extensions starting with dot and lowercased."""
@@ -263,3 +263,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
