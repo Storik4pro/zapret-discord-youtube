@@ -94,7 +94,7 @@ jobs:
           OWNER="Storik4pro"
           REPO="zapret-discord-youtube"
           TAG="${{ inputs.version }}"
-          BODY="${{ steps.get_body.outputs.RELEASE_BODY }}"
+          BODY="Release body"
 
           BODY_FILE=$(mktemp)
           printf '%s' "$BODY" > "$BODY_FILE"
