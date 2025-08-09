@@ -230,6 +230,8 @@ def make_zip_from_package(package_dir: Path, zip_output_path: Path):
         shutil.move(str(produced), str(zip_output_path))
     print(f"Created zip: {zip_output_path}")
 
+repo_root = os.path.dirname(os.path.abspath(__file__))
+
 def main():
     global TARGET_VERSION
      
@@ -267,6 +269,14 @@ def main():
 
     merge_jsons_into_package(out_json, package_dir)
 
+    src_init = os.path.join(repo_root, "init.json")
+    if os.path.exists(src_init):
+        shutil.copy(src_init, package_dir)
+
+    src_loc = os.path.join(repo_root, "loc")
+    if os.path.exists(src_loc):
+        shutil.copytree(src_loc, os.path.join(package_dir, "loc"))
+
     make_zip_from_package(package_dir, zip_output)
 
     print("Done. Zip path:", zip_output)
@@ -274,4 +284,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
