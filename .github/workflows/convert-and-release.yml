@@ -1,0 +1,119 @@
+name: Convert BAT → JSON and Create Draft Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Tag or release version to use (e.g. v1.8.3)'
+        required: true
+      exclude:
+        description: 'Comma-separated .bat filenames to exclude (default: service.bat)'
+        required: false
+        default: 'service.bat'
+
+permissions:
+  contents: write
+
+jobs:
+  convert_and_release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo (workflow + convert.py)
+        uses: actions/checkout@v4
+
+      - name: Setup Python and utilities
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install CLI tools
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y jq zip unzip curl
+
+      - name: Download source zip for the specified tag
+        id: download
+        run: |
+          set -e
+          VER="${{ inputs.version }}"
+          SRC_ZIP=source.zip
+          echo "Downloading Flowseal/zapret-discord-youtube tag ${VER}..."
+          curl -L -o "$SRC_ZIP" "https://github.com/Flowseal/zapret-discord-youtube/archive/refs/tags/${VER}.zip"
+          unzip -q "$SRC_ZIP" -d src
+          ROOT=$(ls src | head -n1)
+          echo "root=$ROOT" >> $GITHUB_OUTPUT
+
+      - name: Try to read release notes/body from upstream release (if exists)
+        id: get_body
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          VER="${{ inputs.version }}"
+          API="https://api.github.com/repos/Flowseal/zapret-discord-youtube/releases/tags/${VER}"
+          resp=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" "$API")
+          body=$(echo "$resp" | jq -r '.body // ""')
+          echo "RELEASE_BODY<<EOF" >> $GITHUB_OUTPUT
+          echo "$body" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Run conversion over extracted repo
+        env:
+          EXCLUDE_RAW: ${{ inputs.exclude }}
+        run: |
+          set -e
+          ROOT="${{ steps.download.outputs.root }}"
+          echo "Using extracted root: src/$ROOT"
+          mkdir -p output_jsons
+          python -u convert.py "src/$ROOT" output_jsons "$EXCLUDE_RAW" || true
+          ls -la output_jsons || true
+
+      - name: Pack JSONs into zapret-discord-youtube.zip
+        run: |
+          set -e
+          if ls output_jsons/*.json 1> /dev/null 2>&1; then
+            zip -j zapret-discord-youtube.zip output_jsons/*.json
+            ls -lh zapret-discord-youtube.zip
+          else
+            echo "No json files to pack, aborting."
+            exit 1
+          fi
+
+      - name: Create draft release and upload asset
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          OWNER="Flowseal"
+          REPO="zapret-discord-youtube"
+          TAG="${{ inputs.version }}"
+          BODY="${{ steps.get_body.outputs.RELEASE_BODY }}"
+
+          echo "Creating draft release for ${OWNER}/${REPO} tag ${TAG} ..."
+          payload=$(jq -n --arg tag "$TAG" --arg name "Auto-converted JSONs for $TAG" --arg body "$BODY" '{tag_name:$tag, name:$name, body:$body, draft:true, prerelease:false}')
+          create_resp=$(curl -s -X POST "https://api.github.com/repos/${OWNER}/${REPO}/releases" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -d "$payload")
+
+          RELEASE_ID=$(echo "$create_resp" | jq -r '.id')
+          UPLOAD_URL_TEMPLATE=$(echo "$create_resp" | jq -r '.upload_url')
+
+          if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ] || [ -z "$UPLOAD_URL_TEMPLATE" ]; then
+            echo "Failed to create release:"
+            echo "$create_resp"
+            exit 1
+          fi
+
+          UPLOAD_URL="${UPLOAD_URL_TEMPLATE%\{*}?name=zapret-discord-youtube.zip"
+          echo "Uploading asset to $UPLOAD_URL ..."
+          curl --fail -s -X POST "$UPLOAD_URL" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Content-Type: application/zip" \
+            --data-binary @zapret-discord-youtube.zip
+
+          echo "Draft release created (ID: $RELEASE_ID) and asset uploaded."
+
+      - name: Done
+        run: echo "Workflow finished. Check Releases in Flowseal/zapret-discord-youtube for the draft."
