@@ -81,7 +81,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
-          OWNER="Flowseal"
+          OWNER="Storik4pro"
           REPO="zapret-discord-youtube"
           TAG="${{ inputs.version }}"
           BODY="${{ steps.get_body.outputs.RELEASE_BODY }}"
