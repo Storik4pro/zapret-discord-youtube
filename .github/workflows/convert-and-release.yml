@@ -96,30 +96,41 @@ jobs:
           TAG="${{ inputs.version }}"
           BODY="${{ steps.get_body.outputs.RELEASE_BODY }}"
 
-          echo "Creating draft release for ${OWNER}/${REPO} tag ${TAG} ..."
-          payload=$(jq -n --arg tag "$TAG" --arg name "$TAG" --arg body "$BODY" '{tag_name:$tag, name:$name, body:$body, draft:true, prerelease:false}')
-          create_resp=$(curl -s -X POST "https://api.github.com/repos/${OWNER}/${REPO}/releases" \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            -d "$payload")
+          BODY_FILE=$(mktemp)
+          printf '%s' "$BODY" > "$BODY_FILE"
 
+          PAYLOAD_FILE=$(mktemp)
+          jq -n \
+          --arg tag "$TAG" \
+          --arg name "Auto-converted JSONs for $TAG" \
+          --rawfile body "$BODY_FILE" \
+          '{tag_name:$tag, name:$name, body:$body, draft:true, prerelease:false}' > "$PAYLOAD_FILE"
+
+          create_resp=$(curl -s -X POST "https://api.github.com/repos/${OWNER}/${REPO}/releases" \
+          -H "Authorization: Bearer $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github+json" \
+          -d @"$PAYLOAD_FILE")
+          
           RELEASE_ID=$(echo "$create_resp" | jq -r '.id')
           UPLOAD_URL_TEMPLATE=$(echo "$create_resp" | jq -r '.upload_url')
 
           if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ] || [ -z "$UPLOAD_URL_TEMPLATE" ]; then
-            echo "Failed to create release:"
-            echo "$create_resp"
-            exit 1
+          echo "Failed to create release — response:"
+          echo "$create_resp"
+          exit 1
           fi
 
           UPLOAD_URL="${UPLOAD_URL_TEMPLATE%\{*}?name=zapret-discord-youtube.zip"
           echo "Uploading asset to $UPLOAD_URL ..."
+
           curl --fail -s -X POST "$UPLOAD_URL" \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
-            -H "Content-Type: application/zip" \
-            --data-binary @zapret-discord-youtube.zip
+          -H "Authorization: Bearer $GITHUB_TOKEN" \
+          -H "Content-Type: application/zip" \
+          --data-binary @zapret-discord-youtube.zip
 
           echo "Draft release created (ID: $RELEASE_ID) and asset uploaded."
+
+          rm -f "$BODY_FILE" "$PAYLOAD_FILE"
 
       - name: Done
         run: echo "Workflow finished. Check Releases in Storik4pro/zapret-discord-youtube for the draft."
