@@ -1,16 +1,30 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+convert.py
+Usage:
+  python convert.py <source_root> <output_json_folder> <package_dir> <zip_output_path> [exclude_csv]
+
+Behavior:
+- Converts .bat files under <source_root> into json files in <output_json_folder>.
+- Builds a package in <package_dir> with all files/folders from source_root,
+  excluding: .service (folder), .github (folder), .gitignore (file), LICENSE.txt (file).
+- In each directory, if both "name" and "name.backup" exist (e.g. ipset-all.txt and ipset-all.txt.backup),
+  prefer the backup file and copy it renamed to the original name.
+- Puts generated .json files into the package root.
+- Creates zip at <zip_output_path> containing the package content (no extra top-level folder).
+"""
 import json
 import os
+import shutil
 from pathlib import Path
 import re
 import sys
 
+EXCLUDE_DIR_NAMES = {'.service', '.github'}
+EXCLUDE_FILE_NAMES = {'.gitignore', 'LICENSE.txt'}
+
 def convert_bat_file(bat_file: str, output_folder: str):
-    """
-    Convert a single .bat into the json format used by your app.
-    Non-interactive: name is derived from file name.
-    """
     with open(bat_file, 'r', encoding='utf-8', errors='ignore') as f:
         lines = f.readlines()
 
@@ -20,7 +34,6 @@ def convert_bat_file(bat_file: str, output_folder: str):
 
     for line in lines:
         line = line.strip()
-
         if not line or line.startswith('::') or line.lower().startswith('rem'):
             continue
 
@@ -35,7 +48,6 @@ def convert_bat_file(bat_file: str, output_folder: str):
 
         if line.lower().startswith('start'):
             in_command = True
-            # remove start "title" and possible /min "..." and trailing caret
             line = re.sub(
                 r'start\s+\".*?\"\s+((/min+\s+\".*?\")|(\S*))\s*\^?',
                 '',
@@ -89,22 +101,9 @@ def convert_bat_file(bat_file: str, output_folder: str):
         json.dump(json_data, f, ensure_ascii=False, indent=4)
     return out_name
 
-def main():
-    if len(sys.argv) < 3:
-        print("Usage: convert.py <source_root> <output_folder> [exclude_csv]")
-        sys.exit(2)
-
-    src_root = sys.argv[1]
-    output_folder = sys.argv[2]
-    excludes = sys.argv[3].split(',') if len(sys.argv) > 3 and sys.argv[3].strip() != '' else []
-    excludes = [e.strip().lower() for e in excludes]
-
-    p = Path(src_root)
-    if not p.exists():
-        print("Source root does not exist:", src_root)
-        sys.exit(1)
-
-    bat_files = list(p.rglob("*.bat"))
+def convert_all_bats(src_root: Path, out_json_folder: Path, excludes_csv: str):
+    excludes = [e.strip().lower() for e in excludes_csv.split(',')] if excludes_csv else []
+    bat_files = list(src_root.rglob("*.bat"))
     print(f"Found {len(bat_files)} .bat files under {src_root}")
     converted = []
     for b in bat_files:
@@ -113,17 +112,110 @@ def main():
             print("Skipping excluded:", b)
             continue
         try:
-            out = convert_bat_file(str(b), output_folder)
+            out = convert_bat_file(str(b), str(out_json_folder))
             converted.append(str(out))
             print("Converted:", b, "->", out)
         except Exception as e:
             print("Failed to convert", b, ":", e)
+    return converted
 
-    if not converted:
-        print("No files converted.")
+def copy_package_with_backup_policy(src_root: Path, package_dir: Path):
+    if package_dir.exists():
+        shutil.rmtree(package_dir)
+    package_dir.mkdir(parents=True, exist_ok=True)
+
+    for src_dir, dirnames, filenames in os.walk(src_root):
+        rel_dir = os.path.relpath(src_dir, src_root)
+        if rel_dir == '.':
+            rel_dir = ''
+
+        dirnames[:] = [d for d in dirnames if d.lower() not in EXCLUDE_DIR_NAMES]
+        target_dir = package_dir.joinpath(rel_dir)
+        target_dir.mkdir(parents=True, exist_ok=True)
+        files_set = set(filenames)
+
+        handled = set()
+
+        # first handle backups
+        for fname in list(files_set):
+            if fname.endswith('.backup'):
+                base = fname[:-7]
+                if base in files_set:
+                    src_file = Path(src_dir) / fname
+                    dst_file = target_dir / base
+                    shutil.copy2(src_file, dst_file)
+                    handled.add(base)
+
+                    handled.add(fname)
+                    print(f"Copied (backup replaces original): {src_file} -> {dst_file}")
+                else:
+                    src_file = Path(src_dir) / fname
+                    dst_file = target_dir / base
+                    shutil.copy2(src_file, dst_file)
+                    handled.add(base)
+                    handled.add(fname)
+                    print(f"Copied (backup->base): {src_file} -> {dst_file}")
+        for fname in files_set:
+            if fname in handled:
+                continue
+            if fname.lower() in EXCLUDE_FILE_NAMES:
+                print(f"Skipping excluded file: {Path(src_dir)/fname}")
+                continue
+            src_file = Path(src_dir) / fname
+            dst_file = target_dir / fname
+            shutil.copy2(src_file, dst_file)
+            print(f"Copied: {src_file} -> {dst_file}")
+
+    for excl in EXCLUDE_DIR_NAMES:
+        excl_path = package_dir.joinpath(excl)
+        if excl_path.exists():
+            if excl_path.is_dir():
+                shutil.rmtree(excl_path)
+            else:
+                excl_path.unlink()
+
+def merge_jsons_into_package(json_folder: Path, package_dir: Path):
+    if not json_folder.exists():
+        return
+    for jf in json_folder.glob("*.json"):
+        dst = package_dir / jf.name
+        shutil.copy2(jf, dst)
+        print(f"Included JSON: {jf} -> {dst}")
+
+def make_zip_from_package(package_dir: Path, zip_output_path: Path):
+    zip_base = str(zip_output_path.with_suffix(''))
+    shutil.make_archive(zip_base, 'zip', root_dir=str(package_dir))
+    produced = Path(zip_base + '.zip')
+    if produced.resolve() != zip_output_path.resolve():
+        # move produced to desired path
+        shutil.move(str(produced), str(zip_output_path))
+    print(f"Created zip: {zip_output_path}")
+
+def main():
+    if len(sys.argv) < 5:
+        print("Usage: convert.py <source_root> <output_json_folder> <package_dir> <zip_output_path> [exclude_csv]")
+        sys.exit(2)
+
+    src_root = Path(sys.argv[1])
+    out_json = Path(sys.argv[2])
+    package_dir = Path(sys.argv[3])
+    zip_output = Path(sys.argv[4])
+    exclude_csv = sys.argv[5] if len(sys.argv) > 5 else ''
+
+    if not src_root.exists():
+        print("Source root does not exist:", src_root)
         sys.exit(1)
 
-    print(f"Converted {len(converted)} files. Output folder:", output_folder)
+    converted = convert_all_bats(src_root, out_json, exclude_csv)
+    print(f"Converted {len(converted)} .bat files to JSON in {out_json}")
+
+    copy_package_with_backup_policy(src_root, package_dir)
+    merge_jsons_into_package(out_json, package_dir)
+
+    make_zip_from_package(package_dir, zip_output)
+
+    print("Done. Zip path:", zip_output)
+    print("Converted files count:", len(converted))
 
 if __name__ == "__main__":
     main()
