@@ -3,11 +3,13 @@
 """
 convert.py
 Usage:
-  python convert.py <source_root> <output_json_folder> <package_dir> <zip_output_path> [exclude_bat_csv] [exclude_ext_csv]
-Or set environment variable EXCLUDE_EXTS for exclude_ext_csv.
+  python convert.py <source_root> <output_json_folder> <package_dir> <zip_output_path> [exclude_bat_csv] [exclude_ext_csv] [target_version]
+Or set environment variables:
+  EXCLUDE_EXTS (comma list), TARGET_VERSION
 
 Behavior:
 - Converts .bat files under <source_root> into json files in <output_json_folder>.
+- "target" in JSON is ["CSZTBN012", <target_version>] where <target_version> is provided.
 - Builds a package in <package_dir> with all files/folders from source_root,
   excluding: .service (folder), .github (folder), .gitignore (file), LICENSE.txt (file).
 - In each directory, if both "name" and "name.backup" exist (e.g. ipset-all.txt and ipset-all.txt.backup),
@@ -25,7 +27,8 @@ import sys
 
 EXCLUDE_DIR_NAMES = {'.service', '.github'}
 EXCLUDE_FILE_NAMES = {'.gitignore', 'LICENSE.txt'}
-DEFAULT_EXCLUDED_EXTS = {'.exe', '.dll', '.sys', '.bat'}  
+DEFAULT_EXCLUDED_EXTS = {'.exe', '.dll', '.bat', '.sys'} 
+DEFAULT_TARGET_VERSION = "71.2"
 
 def normalize_exts(ext_csv: str):
     """Return set of normalized extensions starting with dot and lowercased."""
@@ -34,12 +37,14 @@ def normalize_exts(ext_csv: str):
     parts = [p.strip().lower() for p in ext_csv.split(',') if p.strip() != '']
     normalized = set()
     for p in parts:
-        if p == '':
+        if not p:
             continue
         if not p.startswith('.'):
             p = '.' + p
         normalized.add(p)
     return normalized
+
+TARGET_VERSION = DEFAULT_TARGET_VERSION
 
 def convert_bat_file(bat_file: str, output_folder: str):
     with open(bat_file, 'r', encoding='utf-8', errors='ignore') as f:
@@ -88,6 +93,7 @@ def convert_bat_file(bat_file: str, output_folder: str):
     command = ' '.join(command_lines)
     command = command.replace('^', '').replace('\n', '').strip()
     command = command.replace('%~dp0', '').replace("POPD", '')
+    command = command.replace(r'\\"', '').replace('"', '')
     command = command.replace("%~dp0..\\bin\\", "")
     command = re.sub(r'\s+', ' ', command).strip()
 
@@ -102,7 +108,7 @@ def convert_bat_file(bat_file: str, output_folder: str):
         "name": name,
         "target": [
             "CSZTBN012",
-            "71.2"
+            TARGET_VERSION
         ],
         "jparams": {
             "useGameFilter": False
@@ -164,7 +170,7 @@ def copy_package_with_backup_policy(src_root: Path, package_dir: Path, excluded_
 
         for fname in list(files_set):
             if fname.endswith('.backup'):
-                base = fname[:-7] 
+                base = fname[:-7]
                 base_ext = Path(base).suffix.lower()
                 if base_ext in excluded_exts:
                     print(f"Skipping backup for excluded extension: {Path(src_dir)/fname} -> (base {base_ext} excluded)")
@@ -197,7 +203,6 @@ def copy_package_with_backup_policy(src_root: Path, package_dir: Path, excluded_
             if base_ext in excluded_exts:
                 print(f"Skipping file with excluded extension: {Path(src_dir)/fname}")
                 continue
-
             src_file = Path(src_dir) / fname
             dst_file = target_dir / fname
             shutil.copy2(src_file, dst_file)
@@ -228,8 +233,10 @@ def make_zip_from_package(package_dir: Path, zip_output_path: Path):
     print(f"Created zip: {zip_output_path}")
 
 def main():
+    global TARGET_VERSION
+
     if len(sys.argv) < 5:
-        print("Usage: convert.py <source_root> <output_json_folder> <package_dir> <zip_output_path> [exclude_bat_csv] [exclude_ext_csv]")
+        print("Usage: convert.py <source_root> <output_json_folder> <package_dir> <zip_output_path> [exclude_bat_csv] [exclude_ext_csv] [target_version]")
         sys.exit(2)
 
     src_root = Path(sys.argv[1])
@@ -238,11 +245,18 @@ def main():
     zip_output = Path(sys.argv[4])
     exclude_bat_csv = sys.argv[5] if len(sys.argv) > 5 else ''
     exclude_ext_csv = sys.argv[6] if len(sys.argv) > 6 else os.environ.get('EXCLUDE_EXTS', '')
+    arg_target_version = sys.argv[7] if len(sys.argv) > 7 else os.environ.get('TARGET_VERSION', '')
 
     excluded_exts = normalize_exts(exclude_ext_csv)
     if not excluded_exts:
         excluded_exts = set(DEFAULT_EXCLUDED_EXTS)
     print("Excluded extensions:", excluded_exts)
+
+    if arg_target_version:
+        TARGET_VERSION = str(arg_target_version)
+    else:
+        TARGET_VERSION = os.environ.get('TARGET_VERSION', DEFAULT_TARGET_VERSION)
+    print("Using target version for JSON:", TARGET_VERSION)
 
     if not src_root.exists():
         print("Source root does not exist:", src_root)
