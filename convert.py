@@ -88,7 +88,6 @@ def convert_bat_file(bat_file: str, output_folder: str):
     command = ' '.join(command_lines)
     command = command.replace('^', '').replace('\n', '').strip()
     command = command.replace('%~dp0', '').replace("POPD", '')
-    command = command.replace(r'\\"', '').replace('"', '')
     command = command.replace("%~dp0..\\bin\\", "")
     command = re.sub(r'\s+', ' ', command).strip()
 
@@ -263,4 +262,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
