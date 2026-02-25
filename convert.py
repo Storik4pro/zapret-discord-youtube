@@ -212,8 +212,8 @@ def copy_package_with_backup_policy(src_root: Path, package_dir: Path, excluded_
             shutil.copy2(src_file, dst_file)
             print(f"Copied: {src_file} -> {dst_file}")
 
-    for file in include_files:
-        path = package_dir.joinpath(file)
+    for incl_file in include_files:
+        path = package_dir.joinpath(incl_file)
         if not path.exists():
             Path(os.path.dirname(path)).mkdir(parents=True, exist_ok=True)
             with open(path, 'w', encoding='utf-8') as f:
@@ -272,6 +272,9 @@ def main():
         TARGET_VERSION = os.environ.get('TARGET_VERSION', DEFAULT_TARGET_VERSION)
     print("Using target version for JSON:", TARGET_VERSION)
 
+    if included_files:
+        included_files = included_files.split(",")
+
     if not src_root.exists():
         print("Source root does not exist:", src_root)
         sys.exit(1)
@@ -298,6 +301,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
