@@ -18,6 +18,10 @@ on:
         description: 'Comma-separated extensions to exclude from package (e.g. .exe,.dll). Default: .exe,.dll'
         required: false
         default: ''
+      include_files:
+        description: 'Comma-separated files to include in package (e.g. lists/file.txt,bin/file.bin). Default: lists/ipset-exclude-user.txt, lists/list-general-user.txt, lists/list-exclude-user.txt'
+        required: false
+        default: 'lists/ipset-exclude-user.txt, lists/list-general-user.txt, lists/list-exclude-user.txt'
 
 permissions:
   contents: write
@@ -56,14 +60,15 @@ jobs:
           EXCLUDE_RAW: ${{ inputs.exclude }}
           TARGET_VERSION: ${{ inputs.target_version }}
           EXCLUDE_EXTS: ${{ inputs.exclude_exts }}
+          INCLUDE_FILES: ${{ inputs.include_files }}
         run: |
           set -e
           ROOT="${{ steps.download.outputs.root }}"
           echo "Using extracted root: src/$ROOT"
           rm -rf output_jsons package_temp zapret-discord-youtube.zip || true
           mkdir -p output_jsons
-          # Args: <source_root> <output_json_folder> <package_dir> <zip_output_path> [exclude_bat_csv] [exclude_ext_csv] [target_version]
-          python -u convert.py "src/$ROOT" output_jsons package_temp zapret-discord-youtube.zip "$EXCLUDE_RAW" "$EXCLUDE_EXTS" "$TARGET_VERSION"
+          # Args: <source_root> <output_json_folder> <package_dir> <zip_output_path> [exclude_bat_csv] [exclude_ext_csv] [target_version] [include_files]
+          python -u convert.py "src/$ROOT" output_jsons package_temp zapret-discord-youtube.zip "$EXCLUDE_RAW" "$EXCLUDE_EXTS" "$TARGET_VERSION" "$INCLUDE_FILES"
 
           echo "Files produced:"
           ls -la output_jsons || true
