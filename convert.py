@@ -112,7 +112,7 @@ def convert_bat_file(bat_file: str, output_folder: str):
         ],
         "jparams": {
             "useGameFilterTCP":False,
-            "useGameFilterUDP":False,
+            "useGameFilterUDP":True,
         },
         "variables": variables_text,
         "startup_string": command
@@ -289,6 +289,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
