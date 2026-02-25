@@ -46,7 +46,11 @@ def convert_bat_file(bat_file: str, output_folder: str):
     with open(bat_file, 'r', encoding='utf-8', errors='ignore') as f:
         lines = f.readlines()
 
-    variables_text = [r"%GameFilter%=$LOCALCONDITION(useGameFilter==true ? 1024-65535 : 0)"]
+    variables_text = [
+      r"%GameFilter%=$LOCALCONDITION(useGameFilterTCP==true ? 1024-65535 : 12)",
+      r"%GameFilterTCP%=$LOCALCONDITION(useGameFilterTCP==true ? 1024-65535 : 12)",
+      r"%GameFilterUDP%=$LOCALCONDITION(useGameFilterUDP==true ? 1024-65535 : 12)"
+    ]
     command_lines = []
     in_command = False
 
@@ -107,7 +111,8 @@ def convert_bat_file(bat_file: str, output_folder: str):
             TARGET_VERSION
         ],
         "jparams": {
-            "useGameFilter": False
+            "useGameFilterTCP":False,
+            "useGameFilterUDP":False,
         },
         "variables": variables_text,
         "startup_string": command
@@ -284,5 +289,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
