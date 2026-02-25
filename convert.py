@@ -27,6 +27,7 @@ EXCLUDE_DIR_NAMES = {'.service', '.github'}
 EXCLUDE_FILE_NAMES = {'.gitignore', 'LICENSE.txt'}
 DEFAULT_EXCLUDED_EXTS = {'.exe', '.dll', '.sys', '.bat'}  
 DEFAULT_TARGET_VERSION = "71.2"
+INCLUDE_FILE_NAMES = {"lists/ipset-exclude-user.txt", "lists/list-general-user.txt", "lists/list-exclude-user.txt"}
 
 def normalize_exts(ext_csv: str):
     """Return set of normalized extensions starting with dot and lowercased."""
@@ -143,7 +144,7 @@ def convert_all_bats(src_root: Path, out_json_folder: Path, excludes_csv: str):
             print("Failed to convert", b, ":", e)
     return converted
 
-def copy_package_with_backup_policy(src_root: Path, package_dir: Path, excluded_exts: set):
+def copy_package_with_backup_policy(src_root: Path, package_dir: Path, excluded_exts: set, include_files: set):
     """
     Copy files and dirs from src_root -> package_dir applying:
     - skip directories with names in EXCLUDE_DIR_NAMES
@@ -211,6 +212,13 @@ def copy_package_with_backup_policy(src_root: Path, package_dir: Path, excluded_
             shutil.copy2(src_file, dst_file)
             print(f"Copied: {src_file} -> {dst_file}")
 
+    for file in include_files:
+        path = package_dir.joinpath(file)
+        if not path.exists():
+            Path(os.path.dirname(path)).mkdir(parents=True, exist_ok=True)
+            with open(path, 'w', encoding='utf-8') as f:
+                pass
+
     for excl in EXCLUDE_DIR_NAMES:
         excl_path = package_dir.joinpath(excl)
         if excl_path.exists():
@@ -251,6 +259,7 @@ def main():
     exclude_bat_csv = sys.argv[5] if len(sys.argv) > 5 else ''
     exclude_ext_csv = sys.argv[6] if len(sys.argv) > 6 else os.environ.get('EXCLUDE_EXTS', '')
     arg_target_version = sys.argv[7] if len(sys.argv) > 7 else os.environ.get('TARGET_VERSION', '')
+    included_files = sys.argv[8] if len(sys.argv) > 7 else os.environ.get('INCLUDED_FILES', '')
 
     excluded_exts = normalize_exts(exclude_ext_csv)
     if not excluded_exts:
@@ -270,7 +279,7 @@ def main():
     converted = convert_all_bats(src_root, out_json, exclude_bat_csv)
     print(f"Converted {len(converted)} .bat files to JSON in {out_json}")
 
-    copy_package_with_backup_policy(src_root, package_dir, excluded_exts)
+    copy_package_with_backup_policy(src_root, package_dir, excluded_exts, included_files)
 
     merge_jsons_into_package(out_json, package_dir)
 
@@ -289,6 +298,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
