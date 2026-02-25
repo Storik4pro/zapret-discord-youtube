@@ -19,9 +19,9 @@ on:
         required: false
         default: ''
       include_files:
-        description: 'Comma-separated files to include in package (e.g. lists/file.txt,bin/file.bin). Default: lists/ipset-exclude-user.txt, lists/list-general-user.txt, lists/list-exclude-user.txt'
+        description: 'Comma-separated files to include in package (e.g. lists/file.txt,bin/file.bin). Default: lists/ipset-exclude-user.txt,lists/list-general-user.txt,lists/list-exclude-user.txt'
         required: false
-        default: 'lists/ipset-exclude-user.txt, lists/list-general-user.txt, lists/list-exclude-user.txt'
+        default: 'lists/ipset-exclude-user.txt,lists/list-general-user.txt,lists/list-exclude-user.txt'
 
 permissions:
   contents: write
