@@ -3,5 +3,8 @@
     "alt": "Alternative",
     "formgts": "For MGTS provider",
     "useGameFilter": "Filter for accessing online games (GameFilter)",
-    "useGameFilter_tip": "Filters connections to servers commonly used for online games (Battlefield, Death Stranding, and others). Enabling this may result in high server response latency or reduced connection stability."
+    "useGameFilter_tip": "Filters connections to servers commonly used for online games (Battlefield, Death Stranding, and others). Enabling this may result in high server response latency or reduced connection stability.",
+    "useGameFilterTCP":"Filter all connections by range for TCP (GameFilter)",
+    "useGameFilterUDP":"Filter all connections by range for UDP (GameFilter)"
 }
+
